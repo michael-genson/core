@@ -30,6 +30,14 @@ class MockTodoListEntity(TodoListEntity):
         """Add an item to the To-do list."""
         self._attr_todo_items.append(item)
 
+    async def async_update_todo_item(self, item: TodoItem) -> None:
+        """Update an item in the To-do list."""
+        for idx, existing_item in enumerate(self.items):
+            if existing_item.uid == item.uid:
+                self._attr_todo_items[idx] = item
+                return
+        raise ValueError(f"Item {item.uid} not found in list")
+
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete an item in the To-do list."""
         self._attr_todo_items = [item for item in self.items if item.uid not in uids]
