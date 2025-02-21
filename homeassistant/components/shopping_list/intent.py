@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, intent
 
-from . import DOMAIN, EVENT_SHOPPING_LIST_UPDATED
+from . import DOMAIN, EVENT_SHOPPING_LIST_UPDATED, ShoppingData
 
 INTENT_ADD_ITEM = "HassShoppingListAddItem"
+INTENT_COMPLETE_ITEM = "HassShoppingListCompleteItem"
 INTENT_LAST_ITEMS = "HassShoppingListLastItems"
 
 
 async def async_setup_intents(hass: HomeAssistant) -> None:
     """Set up the Shopping List intents."""
     intent.async_register(hass, AddItemIntent())
+    intent.async_register(hass, CompleteItemIntent())
     intent.async_register(hass, ListTopItemsIntent())
 
 
@@ -29,8 +33,41 @@ class AddItemIntent(intent.IntentHandler):
         """Handle the intent."""
         slots = self.async_validate_slots(intent_obj.slots)
         item = slots["item"]["value"].strip()
-        await intent_obj.hass.data[DOMAIN].async_add(item)
+        shopping_data: ShoppingData = intent_obj.hass.data[DOMAIN]
+        await shopping_data.async_add(item)
 
+        response = intent_obj.create_response()
+        intent_obj.hass.bus.async_fire(EVENT_SHOPPING_LIST_UPDATED)
+        return response
+
+
+class CompleteItemIntent(intent.IntentHandler):
+    """Handle CompleteItem intents."""
+
+    intent_type = INTENT_COMPLETE_ITEM
+    description = "Checks off an item from the shopping list"
+    slot_schema = {"item": cv.string}
+    platforms = {DOMAIN}
+
+    async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
+        """Handle the intent."""
+        slots = self.async_validate_slots(intent_obj.slots)
+        item: str = slots["item"]["value"].strip()
+        shopping_data: ShoppingData = intent_obj.hass.data[DOMAIN]
+
+        item_to_complete = None
+        for list_item in shopping_data.items:
+            if list_item["name"] == item:
+                item_to_complete = list_item
+                break
+
+        if not item_to_complete:
+            response = intent_obj.create_response()
+            response.async_set_speech(f"Item {item} is not on the shopping list")
+            return response
+
+        item_id = cast(str, item_to_complete["id"])
+        await shopping_data.async_update(item_id, {"complete": True})
         response = intent_obj.create_response()
         intent_obj.hass.bus.async_fire(EVENT_SHOPPING_LIST_UPDATED)
         return response
