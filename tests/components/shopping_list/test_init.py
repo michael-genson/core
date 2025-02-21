@@ -41,6 +41,27 @@ async def test_add_item(hass: HomeAssistant, sl_setup) -> None:
     assert response.response_type == intent.IntentResponseType.ACTION_DONE
 
 
+async def test_complete_item(hass: HomeAssistant, sl_setup) -> None:
+    """Test completing an item intent."""
+
+    await intent.async_handle(
+        hass, "test", "HassShoppingListAddItem", {"item": {"value": "beer"}}
+    )
+    await intent.async_handle(
+        hass, "test", "HassShoppingListAddItem", {"item": {"value": "cheese"}}
+    )
+
+    response = await intent.async_handle(
+        hass, "test", "HassShoppingListCompleteItem", {"item": {"value": "beer"}}
+    )
+    assert len(hass.data[DOMAIN].items) == 2
+    assert hass.data[DOMAIN].items[0]["name"] == "beer"
+    assert hass.data[DOMAIN].items[0]["complete"] is True
+
+    # Response text is now handled by default conversation agent
+    assert response.response_type == intent.IntentResponseType.ACTION_DONE
+
+
 async def test_remove_item(hass: HomeAssistant, sl_setup) -> None:
     """Test removiung list items."""
     await intent.async_handle(
